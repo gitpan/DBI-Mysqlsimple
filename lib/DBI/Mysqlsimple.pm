@@ -6,19 +6,21 @@ use Carp qw/croak/;
 use DBI;
 
 use vars qw/$VERSION/;
-$VERSION = '0.01';
+$VERSION = '0.02';
 
 sub new
 {
-    my ($caller,$db,$host,$user,$passwd) = @_;
+    my ($caller,$db,$host,$user,$passwd,$port) = @_;
     my $class = ref $caller || $caller;
 
-    $db ||= 'test';
-    $host ||= '127.0.0.1';
-    $user ||= 'root';
-    $passwd ||= '';
+    $db = 'test' unless defined $db;
+    $host = '127.0.0.1' unless defined $host;
+    $port = 3306 unless defined $port;
 
-    my $dbh = DBI->connect("dbi:mysql:$db:$host", $user, $passwd)
+    $user = 'root' unless defined $user;
+    $passwd = '' unless defined $passwd;
+
+    my $dbh = DBI->connect("dbi:mysql:database=$db;host=$host;port=$port", $user, $passwd)
                            or croak $DBI::errstr;
 
     bless { 'dbh'=>$dbh }, $class;
@@ -53,7 +55,7 @@ sub get_row
     my ($self,$str,$ref) = @_;
 
     my @values;
-    @values  = @$ref if defined $ref;
+    @values = @$ref if defined $ref;
 
     my $dbh = $self->{'dbh'};
     my $sth = $dbh->prepare($str);
@@ -67,7 +69,7 @@ sub get_row
 }
 
 
-sub set_db
+sub do
 {
     my ($self,$str,$ref) = @_;
 
@@ -84,8 +86,7 @@ sub set_db
 
 sub disconnect
 {
-    my ($self) = @_;
-
+    my $self = shift;
     my $dbh = $self->{'dbh'};
     $dbh->disconnect;
 }
@@ -115,7 +116,7 @@ DBI::Mysqlsimple - A simple Mysql database interface using DBI
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =cut
 
@@ -135,8 +136,9 @@ Version 0.01
         print $r->{column1}, $r->{column2}, "\n";
     }
 
-    $db->set_db("delete from table where cond=?", [$cond]);
-    $db->set_db("update table set c1=?,c2=? where cond=?",
+    $db->do("insert into table values (?,?)", [$v1,$v2]);
+    $db->do("delete from table where cond=?", [$cond]);
+    $db->do("update table set c1=?,c2=? where cond=?",
                 [$c1,$c2,$cond]);
 
     $db->disconnect;
@@ -144,7 +146,7 @@ Version 0.01
 
 =head1 METHODS
 
-=head2 new(db,host,user,passwd)
+=head2 new(db,host,user,passwd,[port])
 
 Create a new object. The four arguments are generally needed:
 
@@ -152,6 +154,7 @@ Create a new object. The four arguments are generally needed:
     host: mysql host
     user: mysql user
     passwd: mysql password
+    port: mysql port, default is 3306
 
 
 =head2 get_row(sql, [[cond1,cond2]])
@@ -195,13 +198,13 @@ method. It will consume the memory. You should use DBI's standard
 fetchrow_hashref() or fetchrow_arrayref() ways.
 
 
-=head2 set_db(sql, [[cond1,cond2]])
+=head2 do(sql, [[cond1,cond2]])
 
-Update the database, including update/delete etc.
+Update the database, including insert/update/delete etc.
 
 For example, the statement below:
 
-    $db->set_db("update table set c1=?,c2=? where cond=?",
+    $db->do("update table set c1=?,c2=? where cond=?",
                 [$c1,$c2,$cond]);
 
 will update the table with specified values ($c1,$c2) follow the special 
